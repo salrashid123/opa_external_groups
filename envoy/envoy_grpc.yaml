@@ -60,7 +60,8 @@ static_resources:
                         stat_prefix: ext_authz
                       timeout: 3s
                 - name: envoy.filters.http.router
-                  typed_config: {}
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
           transport_socket:
             name: envoy.transport_sockets.tls
             typed_config:
@@ -98,7 +99,7 @@ static_resources:
         healthy_threshold: 3
         grpc_health_check:
           service_name: "echo.EchoServer"
-          authority: "grpc.yourdomain.com"
+          authority: "grpc.domain.com"
     transport_socket:
       name: envoy.transport_sockets.tls
       typed_config:
@@ -106,9 +107,9 @@ static_resources:
         common_tls_context:
           validation_context:
             match_subject_alt_names:
-              exact: "grpc.yourdomain.com"
+              exact: "grpc.domain.com"
             trusted_ca:
-              filename: "../certs/tls-ca-chain.pem"
+              filename: "../certs/root-ca.crt"
 
 admin:
   access_log_path: "/dev/null"

@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/http2"
+	"golang.org/x/oauth2/google"
 	cloudidentity "google.golang.org/api/cloudidentity/v1"
-	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 )
 
@@ -47,7 +48,7 @@ const (
 
 func posthandler(w http.ResponseWriter, r *http.Request) {
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		fmt.Printf("Error reading body: %v\n", err)
 		http.Error(w, "can't read body", http.StatusInternalServerError)
@@ -158,7 +159,7 @@ func main() {
 	if *useRedis {
 		fmt.Printf("useRedis enabled\n")
 		redisClient = redis.NewClient(&redis.Options{
-			Addr: "redis.yourdomain.com:6379",
+			Addr: "redis.domain.com:6379",
 		})
 		pong, err := redisClient.Ping().Result()
 		if err != nil {
@@ -167,24 +168,24 @@ func main() {
 		fmt.Printf("Redis: %v", pong)
 	}
 
-	fmt.Printf("%v\n", *useCloudIdentityAPI)
+	fmt.Printf("Using CloudIDentityAPI: %v\n", *useCloudIdentityAPI)
 	if *useCloudIdentityAPI {
 		fmt.Printf("useCloudIdentityAPI enabled\n")
 
-		// if using a service account key (don't do this)
-		// serviceAccountFile := "/path/to/svc_account.json"
-		// serviceAccountJSON, err := ioutil.ReadFile(serviceAccountFile)
-		// if err != nil {
-		// 	fmt.Printf("Error Rading Service Account JSON File %v", err)
-		// 	return
-		// }
+		// if using a service account key (don't do this, this i just here for convenience. use impersonation)
+		serviceAccountFile := "/path/to/service_account.json"
+		serviceAccountJSON, err := os.ReadFile(serviceAccountFile)
+		if err != nil {
+			fmt.Printf("Error Rading Service Account JSON File %v", err)
+			return
+		}
 
-		// config, err := google.JWTConfigFromJSON(serviceAccountJSON, cloudidentity.CloudPlatformScope, cloudidentity.CloudIdentityGroupsReadonlyScope)
-		// if err != nil {
-		// 	fmt.Printf("Error Rading Service Account JSON File %v", err)
-		// 	return
-		// }
-		// ts := config.TokenSource(ctx)
+		config, err := google.JWTConfigFromJSON(serviceAccountJSON, cloudidentity.CloudPlatformScope, cloudidentity.CloudIdentityGroupsReadonlyScope)
+		if err != nil {
+			fmt.Printf("Error Rading Service Account JSON File %v", err)
+			return
+		}
+		ts := config.TokenSource(ctx)
 
 		// if the GCE/GKE's default service account has workspace permissions
 		// ts, err := google.DefaultTokenSource(ctx)
@@ -194,15 +195,15 @@ func main() {
 		// }
 
 		// using impersonation
-		targetServiceAccount := "adminapi@fabled-ray-104117.iam.gserviceaccount.com"
-		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
-			TargetPrincipal: targetServiceAccount,
-			Scopes:          []string{cloudidentity.CloudPlatformScope, cloudidentity.CloudIdentityGroupsReadonlyScope},
-		})
-		if err != nil {
-			fmt.Printf("Error Rading Service Account JSON File %v", err)
-			return
-		}
+		// targetServiceAccount := "dwd-sa@core-eso.iam.gserviceaccount.com"
+		// ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+		// 	TargetPrincipal: targetServiceAccount,
+		// 	Scopes:          []string{cloudidentity.CloudPlatformScope, cloudidentity.CloudIdentityGroupsReadonlyScope},
+		// })
+		// if err != nil {
+		// 	fmt.Printf("Error Rading Service Account JSON File %v", err)
+		// 	return
+		// }
 
 		cisvc, err = cloudidentity.NewService(ctx, option.WithTokenSource(ts))
 		if err != nil {

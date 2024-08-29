@@ -1,4 +1,4 @@
-FROM golang:1.17 as build
+FROM golang:1.20 as build
 
 RUN apt-get update -y && apt-get install -y build-essential wget unzip curl
 
@@ -25,11 +25,11 @@ RUN export GOBIN=/app/bin && go install greeter_client/grpc_client.go
 FROM gcr.io/distroless/base
 COPY --from=build /app/grpc.crt /
 COPY --from=build /app/grpc.key.pem /
-COPY --from=build /app/tls-ca.pem /
+COPY --from=build /app/root-ca.pem /
 COPY --from=build /app/bin/grpc_server /
 COPY --from=build /app/bin/grpc_client /
 
 EXPOSE 50051
 
 #ENTRYPOINT ["/grpc_server", "--grpcport", ":50051"]
-#ENTRYPOINT ["/grpc_client", "--host",  "grpc.yourdomain.com:50051"]
+#ENTRYPOINT ["/grpc_client", "--host",  "grpc.domain.com:50051"]

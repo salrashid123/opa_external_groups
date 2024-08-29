@@ -21,9 +21,9 @@ var (
 	address         = flag.String("host", "localhost:50051", "host:port of gRPC server")
 	insecure        = flag.Bool("insecure", false, "connect without TLS")
 	skipHealthCheck = flag.Bool("skipHealthCheck", false, "Skip Initial Healthcheck")
-	tlsCACert       = flag.String("cacert", "../certs/tls-ca.crt", "tls CA Certificate")
+	tlsCACert       = flag.String("cacert", "../certs/root-ca.crt", "tls CA Certificate")
 	authToken       = flag.String("authToken", "../certs/grpc.key", "AuthTOken to send")
-	serverName      = flag.String("servername", "grpc.yourdomain.com", "CACert for server")
+	serverName      = flag.String("servername", "grpc.domain.com", "CACert for server")
 	payloadData     = flag.String("payloadData", "iamtheeggman", "grpcMessage name")
 )
 

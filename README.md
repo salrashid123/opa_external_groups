@@ -34,7 +34,7 @@ Lets get started...for this demo, we will run everything locally...i know, OPA, 
 First edit `/etc/hosts` and add on some hosts to make life a bit easier...
 
 ```bash
-127.0.0.1	grpc.yourdomain.com envoy.yourdomain.com server.yourdomain.com redis.yourdomain.com
+127.0.0.1	grpc.domain.com envoy.domain.com server.domain.com redis.domain.com
 ```
 
 I used my own CA for these certs...if you want you can generate your own here ([CA_scratchpad](https://github.com/salrashid123/ca_scratchpad))
@@ -44,8 +44,7 @@ To run this demo, you'll also need the following:  `golang`, `docker`, `python3`
 Once you have that, get a copy of the Envoy binary (you can also use envoy+dockerimage but i find this easier...)
 
 ```bash
-cd envoy/
-docker cp `docker create envoyproxy/envoy-dev:latest`:/usr/local/bin/envoy .
+docker cp `docker create envoyproxy/envoy-dev:latest`:/usr/local/bin/envoy /tmp/envoy
 ```
 
 This demo will use a JWT sent over by a client that will get validated by either Envoy or OPA, then using the embedded claims, issue an API call to an external groups server for group memebership info.  OPA uses the group membership to make the final decision.
@@ -77,10 +76,10 @@ Then run envoy with JWT validation filter enabled
 
 ```bash
 cd envoy/
-./envoy -c envoy_jwt.yaml -l trace
+/tmp//envoy -c envoy_jwt.yaml -l trace
 ```
 
-#### A) OPA JWT Validation
+#### B) OPA JWT Validation
 
 In this mode, the JWT is not validated by envoy and is simply sent to OPA as-is. OPA loads the public certificate that issued the JWT and validates then extracts the claims.
 
@@ -118,7 +117,7 @@ You can either have a global shared cache or a per-opa local cache
 
 - `A) Global Redis server`
 
-You can either run a commond `Redis` Server which can hold (with a TTL) the various groups a user is a member of.
+You can either run a common `Redis` Server which can hold (with a TTL) the various groups a user is a member of.
 
 This cache is filled in at runtime so when a user's jwt is first presented, the groups server will lookup the user's groups and save it into Redis with an auto-expiring TTL.
 
@@ -135,7 +134,7 @@ OPA usually loads data locally and uses that to make decisions and to the cache 
 External HTTP datasources, however, allows you to define how long to cache the response.  To use this,  edit `*.rego` and set the value for (`"force_cache_duration_seconds"`):
 
 ```r
-r := http.send({"method": "POST", "url": "https://server.yourdomain.com:8443/authz", "body":  jwt_payload.sub, "timeout": "3s", "force_cache": true, "force_cache_duration_seconds": 1, "tls_ca_cert": ca_cert})
+r := http.send({"method": "POST", "url": "https://server.domain.com:8443/authz", "body":  jwt_payload.sub, "timeout": "3s", "force_cache": true, "force_cache_duration_seconds": 1, "tls_ca_cert": ca_cert})
 ```
 
 for more information, see [OPA External Pull Performance and Availability](https://www.openpolicyagent.org/docs/latest/external-data/#recommended-usage-highly-dynamic-or-large-sized-data)
@@ -193,7 +192,7 @@ If you want to use redis, specify the `--useRedis` flag when starting the groups
 You can test the local group server using the curl (this is what opa will be calling anyway)
 
 ```bash
-$ curl -s --cacert certs/tls-ca.crt  -X POST --data "alice@domain.com" https://server.yourdomain.com:8443/authz | jq '.'
+$ curl -s --cacert certs/root-ca.crt  -X POST --resolve  server.domain.com:8081:127.0.0.1  --data "alice@domain.com" https://server.domain.com:8443/authz | jq '.'
 {
   "groups": [
     "securitygroup1@domain.com",
@@ -240,11 +239,11 @@ Notice the `aud`, `iss` and `sub` fields...we will use these in the OPA policies
 
 Now use this token to call envoy
 
-```
-$ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" --cacert certs/tls-ca-chain.pem -H "xfoo: bar" https://envoy.yourdomain.com:8080/get
+```bash
+$ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" --cacert certs/root-ca.crt  --resolve  envoy.domain.com:8081:127.0.0.1  -H "xfoo: bar" https://envoy.domain.com:8080/get
 
 > GET /get HTTP/1.1
-> Host: envoy.yourdomain.com:8080
+> Host: envoy.domain.com:8080
 > User-Agent: curl/7.82.0
 > Accept: */*
 > Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkRIRmJwb0lVcXJZOHQyenBBMnFYZkNtcjVWTzVaRXI0UnpIVV8tZW52dlEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJiYXIuYmFyIiwiZXhwIjoxNjUzMDg2OTQ2LCJpYXQiOjE2NTI5ODY5NDYsImlzcyI6ImZvby5iYXIiLCJyb2xlIjoiYWRtaW4iLCJzdWIiOiJhbGljZUBkb21haW4uY29tIn0.GPqG0kke_Lhc3Ma3Cl0H592w_v5Szl7qUyih26ftor6DK0FPCUaD8YueK4eOezYu4j8DMfTz1t-m-oSUcNKA_B9W1FkQy4S2AxtcI2LeG3Ffd6q0Yf0LPokxe1E3lkeumsn_NAw3gvzLaRDqMtZmK-1Qe_o6msPWaiPXpIoSeRSRrDusNRClt30mLKtBQgrnHxtN6Tfg3MnRRd9vycOCvNtNjk0_oE9VsrkKyIiPkS96fLgz_lQ-US51pPcKC6ChMQRJnm0k3eQJPD6XnDUTFjrXCQDyUSfgD7oRwr8JyNGSCrzCthN0Q_UPeZFmLzJ1ab9kHKStAHR0neEbmecuSQ
@@ -264,7 +263,7 @@ $ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" --cacert certs/tls-ca-chain.pe
   "args": {}, 
   "headers": {
     "Accept": "*/*", 
-    "Host": "envoy.yourdomain.com", 
+    "Host": "envoy.domain.com", 
     "User-Agent": "curl/7.82.0", 
     "X-Amzn-Trace-Id": "Root=1-62869461-435c1d3b5cd1748d6fec7142", 
     "X-Envoy-Expected-Rq-Timeout-Ms": "15000", 
@@ -273,7 +272,7 @@ $ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" --cacert certs/tls-ca-chain.pe
     "X-Validated-By": "security-checkpoint"
   }, 
   "origin": "72.83.67.174", 
-  "url": "https://envoy.yourdomain.com/get"
+  "url": "https://envoy.domain.com/get"
 }
 ```
 
@@ -331,7 +330,8 @@ message EchoReply {
 Start gRPC Server
 
 ```bash
-go run greeter_server/grpc_server.go --grpcport :50051 --tlsCert grpc_server_crt.pem --tlsKey grpc.pem
+cd grpc/
+go run greeter_server/grpc_server.go --grpcport :50051 --tlsCert ../certs/grpc.crt --tlsKey ../certs/grpc.key
 ```
 
 Start Envoy with grpc handlers:
@@ -383,9 +383,11 @@ Get an `ADMIN_TOKEN` using the pythons script above
 Test gRPC client...remember to pass in `iamtheeggman` too!
 
 ```bash
- go run greeter_client/grpc_client.go \
-   --host localhost:8080 --cacert ../certs/tls-ca.crt \
-   --servername envoy.yourdomain.com -skipHealthCheck  \
+echo $ADMIN_TOKEN
+
+go run greeter_client/grpc_client.go \
+   --host localhost:8080 --cacert ../certs/root-ca.crt \
+   --servername envoy.domain.com -skipHealthCheck  \
    --payloadData=iamtheeggman \
    --authToken=$ADMIN_TOKEN 
 ```
@@ -405,7 +407,7 @@ now notice the OPA request it got for evaluation...specifically the `parsed_body
             "portValue": 8080
           }
         },
-        "principal": "envoy.yourdomain.com"
+        "principal": "envoy.domain.com"
       },
       "metadataContext": {
         "filterMetadata": {
@@ -424,7 +426,7 @@ now notice the OPA request it got for evaluation...specifically the `parsed_body
       "request": {
         "http": {
           "headers": {
-            ":authority": "envoy.yourdomain.com",
+            ":authority": "envoy.domain.com",
             ":method": "POST",
             ":path": "/echo.EchoServer/SayHelloUnary",
             ":scheme": "https",
@@ -437,7 +439,7 @@ now notice the OPA request it got for evaluation...specifically the `parsed_body
             "x-request-id": "3a3ae89f-bc08-4216-a520-128c3cc0696d",
             "xfoo": "bar"
           },
-          "host": "envoy.yourdomain.com",
+          "host": "envoy.domain.com",
           "id": "13150880515659298070",
           "method": "POST",
           "path": "/echo.EchoServer/SayHelloUnary",
